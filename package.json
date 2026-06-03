@@ -3,6 +3,7 @@
     "docxtemplater": "^3.68.7",
     "dotenv": "^17.4.2",
     "googleapis": "^173.0.0",
+    "pdf-lib": "^1.17.1",
     "pizzip": "^3.2.0"
   }
 }
