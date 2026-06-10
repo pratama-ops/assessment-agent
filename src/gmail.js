@@ -35,28 +35,31 @@ async function getUnreadEmails() {
     if (messages.length === 0) return [];
 
     // Ambil detail tiap email
-    const emails = await Promise.all(
+    const rawEmails = await Promise.all(
       messages.map(async (msg) => {
+        if (!msg.id) return null;
+
         const detail = await gmail.users.messages.get({
           userId: "me",
-          messageId: msg.id,
+          id: msg.id,
           format: "full",
         });
 
-        // Ekstrak subject dan body dari email
         const headers = detail.data.payload.headers;
         const subject = headers.find((h) => h.name === "Subject")?.value || "";
         const from = headers.find((h) => h.name === "From")?.value || "";
         const body = extractEmailBody(detail.data.payload);
 
         return {
-          id: msg.id,
+          messageId: msg.id,
           subject,
           from,
           body,
         };
       })
     );
+
+    const emails = rawEmails.filter(Boolean);
 
     return emails;
   } catch (error) {
@@ -127,8 +130,8 @@ async function replyWithFiles(originalEmail, filePaths) {
     let emailContent = [
       `To: ${originalEmail.from}`,
       `Subject: ${subject}`,
-      `In-Reply-To: ${originalEmail.id}`,
-      `References: ${originalEmail.id}`,
+      `In-Reply-To: ${originalEmail.messageId}`,
+      `References: ${originalEmail.messageId}`,
       "MIME-Version: 1.0",
       `Content-Type: multipart/mixed; boundary="${boundary}"`,
       "",
