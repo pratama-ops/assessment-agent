@@ -3,9 +3,9 @@ require("dotenv").config({ path: path.join(__dirname, "../.env") });
 
 const { getUnreadEmails, markAsRead, replyWithFiles } = require("./gmail");
 const { parseEmailToClientData, isNewClientEmail } = require("./parser");
-const { generateQuotation } = require("./generators/quotation");
-const { generateCR } = require("./generators/cr");
-const { generateQRF } = require("./generators/qrf");
+const { generateQuotation } = require("./generator/quotation");
+const { generateCR } = require("./generator/cr");
+const { generateQRF } = require("./generator/qrf");
 const { withRetry, registerErrorHandlers } = require("./errorHandler");
 
 registerErrorHandlers();
@@ -34,7 +34,7 @@ async function processEmails() {
       if (!isNewClientEmail(email.subject, email.body)) {
         console.log("⏭️  Not a new client email, skipping...");
         // Tandai sebagai read supaya tidak diproses lagi
-        await markAsRead(email.id);
+        await markAsRead(email.messageId);
         continue;
       }
 
@@ -70,7 +70,7 @@ async function processEmails() {
 
       // 6. Tandai email sebagai sudah dibaca
       // supaya tidak diproses lagi di polling berikutnya
-      await markAsRead(email.id);
+      await markAsRead(email.messageId);
 
       console.log("✅ Done processing:", clientData.company_name);
       console.log("─".repeat(50));
