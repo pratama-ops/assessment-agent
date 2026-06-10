@@ -46,11 +46,11 @@ async function generateQuotation(clientData) {
         const output = doc.getZip().generate({ type: "nodebuffer" });
 
         //5. save ke folder output
-        const outputFile = `Quotation_${clientData.company_name}_${Date.now()}.docx`
+        const outputFileName = `Quotation_${clientData.company_name}_${Date.now()}.docx`
         const outputPath = path.join(__dirname, "../../output", outputFileName);
         fs.writeFileSync(outputPath, output);
 
-        console.log(`Quotation generated: ${outputFile}`);
+        console.log(`Quotation generated: ${outputFileName}`);
         return outputPath;
     } catch (error) {
         console.error('Error generating quotation', error);

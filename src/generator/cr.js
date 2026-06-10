@@ -4,7 +4,7 @@ const path = require("path");
 
 async function generateCR(clientData) {
   try {
-    // Baca template CR dari folder templates/
+    // Baca template CR dari folder template/
     const templatePath = path.join(__dirname, "../../template/cr.xlsm");
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.readFile(templatePath);

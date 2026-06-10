@@ -4,8 +4,8 @@ const path = require("path");
 
 async function generateQRF(clientData) {
   try {
-    // Baca file PDF template dari folder templates/
-    const templatePath = path.join(__dirname, "../../templates/qrf.pdf");
+    // Baca file PDF template dari folder template/
+    const templatePath = path.join(__dirname, "../../template/qrf 1.pdf");
     const pdfBytes = fs.readFileSync(templatePath);
     const pdfDoc = await PDFDocument.load(pdfBytes);
 
@@ -16,11 +16,11 @@ async function generateQRF(clientData) {
     // Data dasar perusahaan klien
     // getTextField = ambil field teks, setText = isi nilainya
     // "Text Field 13" = nama field di PDF (hasil dari check-field.js tadi)
-    form.getTextField("Text Field 13").setText(clientData.company_name);
+    form.getTextField("Text Field 13").setText(clientData.company_name || "");
     form.getTextField("Text Field 191").setText("Indonesia"); // selalu Indonesia, hardcoded
-    form.getTextField("Text Field 14").setText(clientData.address);
+    form.getTextField("Text Field 14").setText(clientData.address || "");
     form.getTextField("Text Field 15").setText(clientData.postcode || ""); // || "" = kalau kosong, isi string kosong supaya tidak error
-    form.getTextField("Text Field 17").setText(clientData.contact_name);
+    form.getTextField("Text Field 17").setText(clientData.contact_name || "");
     form.getTextField("Text Field 18").setText(clientData.job_title || "");
     form.getTextField("Text Field 19").setText(clientData.email || "");
     form.getTextField("Text Field 20").setText(clientData.phone || "");
@@ -43,9 +43,10 @@ async function generateQRF(clientData) {
     // SECTION 3 - Integrated Management System
     // Apakah beberapa ISO digabung dalam satu sistem manajemen
     // Kalau klien pilih lebih dari 1 ISO = otomatis dianggap integrated
+    // Kalau hanya 1 ISO = centang No
     if (standards.length > 1) {
       form.getCheckBox("Check Box 255").check(); // Yes - Full
-      form.getTextField("Text Field 272").setText(clientData.integration_details || "");
+      form.getTextField("Text Field 279").setText(clientData.integration_details || "");
     } else {
       form.getCheckBox("Check Box 257").check(); // No
     }
@@ -53,17 +54,20 @@ async function generateQRF(clientData) {
     // SECTION 4 - Employees
     // Total jumlah karyawan di perusahaan klien
     // String() = konversi angka ke teks karena setText butuh string
-    form.getTextField("Text Field 271").setText(String(clientData.total_employees || ""));
+    // Text Field 42 = kolom "Total no of employees" di section 4
+    form.getTextField("Text Field 42").setText(String(clientData.total_employees || ""));
 
     // SECTION 5 - Client Type
     // Jenis klien: baru, existing, atau transfer
     // Karena agent hanya jalan kalau ada klien baru,
-    form.getCheckBox("Check Box 191").check(); // A new client - selalu dicentang
+    // "new client" selalu dicentang (hardcoded)
+    form.getCheckBox("Check Box 258").check(); // A new client - selalu dicentang
 
     // SECTION 6 - Scope of Certification
     // Deskripsi singkat apa yang dilakukan perusahaan klien
     // contoh: "Manufacture of upvc profiling (windows, doorframes)"
-    form.getTextField("Text Field 277").setText(clientData.scope || "");
+    // Text Field 271 = field scope di section 6
+    form.getTextField("Text Field 271").setText(clientData.scope || "");
 
     // SECTION 7 - Client Sites
     // Apakah klien melakukan pekerjaan di lokasi pelanggan mereka
@@ -75,12 +79,11 @@ async function generateQRF(clientData) {
 
     // SECTION 8 - Outsourced Activities
     // Apakah klien punya aktivitas yang dioutsource ke pihak lain
+    // Text Field 277 = field detail outsourced di section 8
     if (clientData.has_outsourced) {
-      form.getCheckBox("Check Box 108").check(); // Yes
-      form.getTextField("Text Field 101").setText(clientData.outsourced_details || "");
-    } else {
-      form.getCheckBox("Check Box 109").check(); // No
+      form.getTextField("Text Field 277").setText(clientData.outsourced_details || "");
     }
+    // section 9, 11a, 11b, 11c dibiarkan kosong — tidak relevan untuk semua klien
 
     // SECTION 12 - Target Assessment Date
     // Kapan klien mau mulai diaudit
@@ -100,21 +103,20 @@ async function generateQRF(clientData) {
 
     // SECTION 14 - Consultant
     // Apakah klien pakai konsultan untuk bantu implementasi
-    if (clientData.using_consultant) {
+    // default kosong — hanya diisi kalau ada info consultant dari email
+    if (clientData.using_consultant === true) {
       form.getCheckBox("Check Box 264").check(); // Yes
       form.getTextField("Text Field 1046").setText(clientData.consultant_info || "");
-    } else {
-      form.getCheckBox("Check Box 265").check(); // No
     }
 
     // SECTION A - ISO 9001 spesifik
     // Hanya diisi kalau klien pilih ISO 9001
     // Pertanyaan: apakah klien melakukan design & development produk?
     if (standards.includes("9001")) {
-      if (clientData.has_design_development) {
+      if (clientData.has_design_development === true) {
         form.getCheckBox("Check Box 108").check();
         form.getTextField("Text Field 101").setText(String(clientData.design_staff_count || ""));
-      } else {
+      } else if (clientData.has_design_development === false) {
         form.getCheckBox("Check Box 109").check();
       }
     }
@@ -123,12 +125,10 @@ async function generateQRF(clientData) {
     // Hanya diisi kalau klien pilih ISO 45001
     // Berisi info K3: jumlah karyawan, apakah ada anggota publik di lokasi
     if (standards.includes("45001")) {
-      form.getTextField("Text Field 271").setText(String(clientData.total_employees || ""));
-
       // Apakah ada anggota masyarakat umum yang hadir di lokasi kerja klien
-      if (clientData.public_present) {
+      if (clientData.public_present === true) {
         form.getCheckBox("Check Box 1056").check(); // Yes
-      } else {
+      } else if (clientData.public_present === false) {
         form.getCheckBox("Check Box 1058").check(); // No
       }
     }
