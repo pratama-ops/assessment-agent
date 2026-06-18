@@ -1,11 +1,12 @@
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "../.env") });
 
-const { getUnreadEmails, markAsRead, replyWithFiles } = require("./gmail");
+const { getUnreadEmails, markAsRead, replyWithMessage } = require("./gmail");
 const { parseEmailToClientData, isNewClientEmail } = require("./parser");
 const { generateQuotation } = require("./generator/quotation");
 const { generateCR } = require("./generator/cr");
 const { generateQRF } = require("./generator/qrf");
+const { getAuditorSkills } = require("./matrix");
 const { withRetry, registerErrorHandlers } = require("./errorHandler");
 
 registerErrorHandlers();
@@ -44,28 +45,46 @@ async function processEmails() {
       const clientData = await withRetry(() => parseEmailToClientData(email.body));
       console.log(`🏢 Client: ${clientData.company_name}`);
 
-      // 4. Generate semua file dokumen
+      // 4. Melakukan pengecekan Auditor Skills dari file NQA Competency Matrix (Excel)
+      //    Mencocokkan inisial auditor dan IAF code untuk mendapatkan status Qualified & Skill Code spesifik
+      console.log("🔍 Checking Competency Matrix for:", clientData.auditor_name);
+      const skillsMatrix = await withRetry(() => getAuditorSkills(
+        clientData.auditor_name || "",
+        clientData.iaf_code || "",
+        clientData.standards || []
+      ));
+
+      // Membuat susunan teks/pesan informasi matriks auditor yang akan disisipkan di dalam Email
+      let messageText = `Informasi Auditor & Skema untuk ${clientData.company_name}:\n\n`;
+      messageText += `Auditor Initials: ${skillsMatrix.auditor_initials}\n`;
+      messageText += `IAF/EAC Code: ${clientData.iaf_code} (${clientData.iaf_description || ""})\n\n`;
+      
+      // Looping untuk menuliskan daftar skill berdasarkan standar (9001, 14001, dll)
+      skillsMatrix.skills.forEach(s => {
+        messageText += `- Standard: ISO ${s.standard}\n`;
+        messageText += `  Role: ${s.role}\n`;
+        messageText += `  Skill Code: ${s.code}\n`;
+        messageText += `  Qualified: ${s.qualified ? "Yes" : "No"}\n\n`;
+      });
+
+      // 5. Generate semua file dokumen (CR, Quotation, QRF)
       console.log("📄 Generating documents...");
       const outputFiles = [];
 
-      // Generate CR (.xlsx)
       const crPath = await withRetry(() => generateCR(clientData));
       outputFiles.push(crPath);
 
-      // Generate Quotation (.docx)
-      // Kalau 2 ISO atau lebih, tanya apakah mau digabung atau pisah
-      // Untuk sekarang default: 1 file quotation untuk semua ISO
       const quotationPath = await withRetry(() => generateQuotation(clientData));
       outputFiles.push(quotationPath);
 
-      // Generate QRF (.pdf)
       const qrfPath = await withRetry(() => generateQRF(clientData));
       outputFiles.push(qrfPath);
 
       console.log(`✅ Generated ${outputFiles.length} files`);
+      console.log("💬 Sending message text and files...");
 
-      // 5. Reply email papah dengan file hasil generate
-      await withRetry(() => replyWithFiles(email, outputFiles));
+      // 6. Reply email papah dengan info dari matrix dan files
+      await withRetry(() => replyWithMessage(email, messageText, outputFiles));
       console.log("📨 Reply sent to:", email.from);
 
       // 6. Tandai email sebagai sudah dibaca
