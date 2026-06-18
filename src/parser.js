@@ -1,5 +1,6 @@
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "../../.env") });
+const { getEacList, getAuditorInitialsList } = require("./matrix");
 
 // Format email yang papah kirim:
 // Subject: NEW CLIENT - PT. Nama Perusahaan
@@ -15,6 +16,14 @@ require("dotenv").config({ path: path.join(__dirname, "../../.env") });
 
 async function parseEmailToClientData(emailBody) {
     try {
+        // Ambil daftar EAC/IAF Code dari Matriks Excel untuk dijadikan referensi/contekan bagi Groq AI
+        const eacList = await getEacList();
+        const eacString = eacList.map(e => `${e.code}=${e.description}`).join(", ");
+        
+        // Ambil daftar inisial auditor dari Matriks Excel agar Groq tidak mengarang nama inisial
+        const initialsList = await getAuditorInitialsList();
+        const initialsString = initialsList.join(", ");
+
         // Kirim email body ke Groq API
         // Groq akan ekstrak semua data yang dibutuhkan
         // dan kembalikan dalam format JSON
@@ -51,7 +60,7 @@ Format JSON yang harus dikembalikan:
   "scope": "deskripsi scope sertifikasi",
   "iaf_code": angka kode industri IAF (integer),
   "iaf_description": "deskripsi industri",
-  "auditor_name": "nama auditor",
+  "auditor_name": "inisial auditor dari daftar (misal PT, DT, dll)",
   "auditor_role": "Lead Auditor",
   "contract_type": "Initial",
   "has_client_sites": true atau false,
@@ -79,11 +88,11 @@ Format JSON yang harus dikembalikan:
 }
 
 Aturan penting:
-- standards harus array of string, contoh: ["9001", "45001"]
+- standards harus array of string, contoh: ["9001", "45001"]. Perhatikan singkatan berikut: 9k = "9001", 14k = "14001", 45k = "45001", 27k = "27001", 50k = "50001", 13k = "13485".
 - total_employees harus integer, bukan string
 - iaf_code tentukan berdasarkan deskripsi industri klien menggunakan referensi kode IAF/EAC berikut:
-  1=Agriculture, 3=Food, 14=Rubber/plastic, 15=Non-metallic mineral, 17=Metal, 18=Machinery, 
-  28=Construction, 29=Wholesale/retail, 31=Transport, 33=IT, 34=Engineering, 35=Other services
+  ${eacString}
+- auditor_name HARUS berupa inisial dari daftar berikut yang cocok dengan nama di email: ${initialsString}. Jika tidak yakin, kembalikan inisial yang paling masuk akal atau kosongi.
 - has_client_sites, has_outsourced, using_consultant, has_design_development, public_present harus boolean
 - implementation_stage harus salah satu dari: researching, implementing, system_in_place, already_certified
 - Kalau data tidak ada di email, isi dengan nilai default: string kosong "", false untuk boolean, 0 untuk angka
