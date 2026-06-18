@@ -33,10 +33,10 @@ async function generateQRF(clientData) {
     // Hanya centang yang sesuai, sisanya dibiarkan kosong
     const standards = clientData.standards || []; // contoh: ["9001", "45001"]
 
-    if (standards.includes("9001"))  form.getCheckBox("Check Box 15").check();
+    if (standards.includes("9001"))  form.getCheckBox("Check Box 59").check();
     if (standards.includes("14001")) form.getCheckBox("Check Box 57").check();
     if (standards.includes("45001")) form.getCheckBox("Check Box 58").check();
-    if (standards.includes("27001")) form.getCheckBox("Check Box 59").check();
+    if (standards.includes("27001")) form.getCheckBox("Check Box 15").check();
     if (standards.includes("50001")) form.getCheckBox("Check Box 166").check();
     if (standards.includes("13485")) form.getCheckBox("Check Box 229").check();
 
