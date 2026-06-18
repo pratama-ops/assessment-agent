@@ -117,16 +117,16 @@ async function markAsRead(messageId) {
   }
 }
 
-// Reply email papah dengan attach file hasil generate
-async function replyWithFiles(originalEmail, filePaths) {
+// Reply email papah dengan pesan kustom (text body) dan melampirkan file hasil generate jika ada
+async function replyWithMessage(originalEmail, messageText, filePaths = []) {
   try {
     const gmail = createGmailClient();
 
-    // Buat email reply dengan attachment
+    // Buat email reply dengan mekanisme multipart untuk teks dan attachment
     const boundary = "boundary_nqa_agent";
     const subject = `Re: ${originalEmail.subject}`;
 
-    // Susun isi pesan reply email
+    // Susun isi pesan reply email beserta custom text dari Matrix
     let emailContent = [
       `To: ${originalEmail.from}`,
       `Subject: ${subject}`,
@@ -138,12 +138,18 @@ async function replyWithFiles(originalEmail, filePaths) {
       `--${boundary}`,
       "Content-Type: text/plain; charset=utf-8",
       "",
-      "File dokumen klien baru sudah siap. Silakan review sebelum dikirim ke klien.",
+      messageText, // Memasukkan informasi Auditor Matrix ke body email
       "",
-      "Files:",
-      ...filePaths.map((f) => `- ${path.basename(f)}`),
-      "",
-    ].join("\n");
+    ];
+
+    // Jika ada file hasil generate, buat rincian nama filenya di pesan
+    if (filePaths && filePaths.length > 0) {
+      emailContent.push("Files:");
+      filePaths.forEach((f) => emailContent.push(`- ${path.basename(f)}`));
+      emailContent.push("");
+    }
+
+    emailContent = emailContent.join("\n");
 
     // Attach tiap file
     const fs = require("fs");
@@ -185,11 +191,11 @@ async function replyWithFiles(originalEmail, filePaths) {
       requestBody: { raw: encodedEmail },
     });
 
-    console.log(`✅ Reply sent with ${filePaths.length} files`);
+    console.log(`✅ Reply sent. Files attached: ${filePaths ? filePaths.length : 0}`);
   } catch (error) {
     console.error("❌ Error sending reply:", error);
     throw error;
   }
 }
 
-module.exports = { getUnreadEmails, markAsRead, replyWithFiles };
+module.exports = { getUnreadEmails, markAsRead, replyWithMessage };
