@@ -53,7 +53,7 @@ async function processEmails() {
         console.log("✅ New client email detected! Processing...");
 
         // 3. Parse email → ekstrak data klien via Groq
-        clientData = await withRetry(() => parseEmailToClientData(email.body));
+        clientData = await withRetry(() => parseEmailToClientData(email.subject, email.body));
       }
 
       // Simpan data terbaru ke database (berdasarkan threadId) agar bisa direvisi lagi di masa depan

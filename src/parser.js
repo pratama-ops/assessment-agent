@@ -14,7 +14,7 @@ const { getEacList, getAuditorInitialsList } = require("./matrix");
 // Auditor: Alfons Dolly
 // Catatan: client baru, integrated audit
 
-async function parseEmailToClientData(emailBody) {
+async function parseEmailToClientData(emailSubject, emailBody) {
     try {
         // Ambil daftar EAC/IAF Code dari Matriks Excel untuk dijadikan referensi/contekan bagi Groq AI
         const eacList = await getEacList();
@@ -46,7 +46,7 @@ Ekstrak data berikut dari email dan kembalikan HANYA dalam format JSON, tanpa te
 
 Format JSON yang harus dikembalikan:
 {
-  "company_name": "nama perusahaan lengkap",
+  "company_name": "nama perusahaan lengkap (prioritaskan ambil dari SUBJECT email)",
   "address": "alamat lengkap",
   "contact_name": "nama kontak person",
   "job_title": "jabatan kontak person",
@@ -122,8 +122,8 @@ Jika klien meminta ISO 14001 atau 45001, analisislah 'scope' atau industri merek
                     },
                     {
                         role: "user",
-                        // Kirim body email ke Groq untuk diparse
-                        content: `Ekstrak data klien dari email berikut:\n\n${emailBody}`
+                        // Kirim subject dan body email ke Groq untuk diparse
+                        content: `Ekstrak data klien dari email berikut:\n\nSUBJECT: ${emailSubject}\n\nBODY:\n${emailBody}`
                     }
                 ],
                 temperature: 0.1 // temperature rendah = hasil lebih konsisten, tidak kreatif
