@@ -2,7 +2,8 @@ const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "../.env") });
 
 const { getUnreadEmails, markAsRead, replyWithMessage } = require("./gmail");
-const { parseEmailToClientData, isNewClientEmail } = require("./parser");
+const { parseEmailToClientData, isNewClientEmail, applyRevisionToData } = require("./parser");
+const { loadClientData, saveClientData } = require("./database");
 const { generateQuotation } = require("./generator/quotation");
 const { generateCR } = require("./generator/cr");
 const { generateQRF } = require("./generator/qrf");
@@ -30,19 +31,34 @@ async function processEmails() {
     for (const email of emails) {
       console.log(`📧 Processing: "${email.subject}"`);
 
-      // Cek keyword di subject/body
-      // Kalau bukan email klien baru, skip
-      if (!isNewClientEmail(email.subject, email.body)) {
-        console.log("⏭️  Not a new client email, skipping...");
-        // Tandai sebagai read supaya tidak diproses lagi
-        await markAsRead(email.messageId);
-        continue;
+      // Cek apakah ini email revisi dari thread yang sudah ada
+      const existingData = loadClientData(email.threadId);
+      
+      let clientData;
+
+      if (existingData) {
+        // Ini adalah email revisi karena kita punya history data dengan threadId ini
+        console.log("📝 Revision email detected! Applying revisions...");
+        clientData = await withRetry(() => applyRevisionToData(email.body, existingData));
+      } else {
+        // Cek keyword di subject/body
+        // Kalau bukan email klien baru, skip
+        if (!isNewClientEmail(email.subject, email.body)) {
+          console.log("⏭️  Not a new client email, skipping...");
+          // Tandai sebagai read supaya tidak diproses lagi
+          await markAsRead(email.messageId);
+          continue;
+        }
+
+        console.log("✅ New client email detected! Processing...");
+
+        // 3. Parse email → ekstrak data klien via Groq
+        clientData = await withRetry(() => parseEmailToClientData(email.body));
       }
 
-      console.log("✅ New client email detected! Processing...");
-
-      // 3. Parse email → ekstrak data klien via Groq
-      const clientData = await withRetry(() => parseEmailToClientData(email.body));
+      // Simpan data terbaru ke database (berdasarkan threadId) agar bisa direvisi lagi di masa depan
+      saveClientData(email.threadId, clientData);
+      
       console.log(`🏢 Client: ${clientData.company_name}`);
 
       // 4. Melakukan pengecekan Auditor Skills dari file NQA Competency Matrix (Excel)
@@ -71,12 +87,17 @@ async function processEmails() {
       console.log("📄 Generating documents...");
       const outputFiles = [];
 
+      // Generate CR (.xlsx)
       const crPath = await withRetry(() => generateCR(clientData));
       outputFiles.push(crPath);
 
+      // Generate Quotation (.docx)
+      // Kalau 2 ISO atau lebih, tanya apakah mau digabung atau pisah
+      // Untuk sekarang default: 1 file quotation untuk semua ISO
       const quotationPath = await withRetry(() => generateQuotation(clientData));
       outputFiles.push(quotationPath);
 
+      // Generate QRF (.pdf)
       const qrfPath = await withRetry(() => generateQRF(clientData));
       outputFiles.push(qrfPath);
 
