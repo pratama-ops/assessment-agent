@@ -31,37 +31,66 @@ async function generateQRF(clientData) {
     // ISO apa saja yang diminta klien
     // getCheckBox = ambil field checkbox, .check() = centang
     // Hanya centang yang sesuai, sisanya dibiarkan kosong
-    const standards = clientData.standards || []; // contoh: ["9001", "45001"]
+    const standards = clientData.standards || []; // contoh: ["9001", "45001", "ISO 9001"]
 
-    if (standards.includes("9001"))  form.getCheckBox("Check Box 59").check();
-    if (standards.includes("14001")) form.getCheckBox("Check Box 57").check();
-    if (standards.includes("45001")) form.getCheckBox("Check Box 58").check();
-    if (standards.includes("27001")) form.getCheckBox("Check Box 15").check();
-    if (standards.includes("50001")) form.getCheckBox("Check Box 166").check();
-    if (standards.includes("13485")) form.getCheckBox("Check Box 229").check();
+    // Centang ISO yg dipilih klien sesuai posisi koordinat di PDF
+    if (standards.some(s => s.includes("9001")))  form.getCheckBox("Check Box 261").check();  // ISO 9001:2015  - x=362, y=371
+    if (standards.some(s => s.includes("14001"))) form.getCheckBox("Check Box 258").check(); // ISO 14001:2015 - x=548, y=371
+    if (standards.some(s => s.includes("45001"))) form.getCheckBox("Check Box 255").check(); // ISO 45001:2018 - x=174, y=343
+    if (standards.some(s => s.includes("27001"))) form.getCheckBox("Check Box 263").check(); // ISO 27001:2022 - x=362, y=316
+    if (standards.some(s => s.includes("50001"))) form.getCheckBox("Check Box 262").check(); // ISO 50001:2018 - x=548, y=343
+    if (standards.some(s => s.includes("13485"))) form.getCheckBox("Check Box 259").check(); // ISO 13485      - x=174, y=316
 
     // SECTION 3 - Integrated Management System
-    // Apakah beberapa ISO digabung dalam satu sistem manajemen
-    // Kalau klien pilih lebih dari 1 ISO = otomatis dianggap integrated
-    // Kalau hanya 1 ISO = centang No
+    // Kalau lebih dari 1 ISO dipilih, centang Yes - Full (Check Box 57)
+    // Kalau hanya 1 ISO = centang No (Check Box 59)
+    // Check Box 57 = Yes-Full (x=245 y=200), 58 = Yes-Partial (x=309), 59 = No (x=373)
     if (standards.length > 1) {
-      form.getCheckBox("Check Box 255").check(); // Yes - Full
-      form.getTextField("Text Field 279").setText(clientData.integration_details || "");
+      form.getCheckBox("Check Box 57").check(); // Yes - Full
     } else {
-      form.getCheckBox("Check Box 257").check(); // No
+      form.getCheckBox("Check Box 59").check(); // No
     }
 
     // SECTION 4 - Employees
-    // Total jumlah karyawan di perusahaan klien
-    // String() = konversi angka ke teks karena setText butuh string
-    // Text Field 42 = kolom "Total no of employees" di section 4
-    form.getTextField("Text Field 42").setText(String(clientData.total_employees || ""));
+    // Total jumlah karyawan (field header "No. of staff" dan juga total di bawah tabel breakdown)
+    const totalEmp = parseInt(clientData.total_employees) || 0;
+
+    // Isi field core hours dengan total karyawan
+    form.getTextField("Text Field 285").setText(String(totalEmp)); // Core hours = semua karyawan
+    form.getTextField("Text Field 284").setText("");               // Shift 1 = kosong
+    form.getTextField("Text Field 283").setText("");               // Shift 2 = kosong
+    form.getTextField("Text Field 282").setText("");               // Shift 3 = kosong
+    form.getTextField("Text Field 281").setText(String(totalEmp)); // Total no. of employees (header)
+
+    // SECTION 4b - Task Breakdown
+    // Pecah total ke kategori tugas: jika dijumlah semua harus tepat = totalEmp
+    // Pakai Math.floor agar tidak ada desimal, lalu sisa dimasukkan ke 'other'
+    const opsOffice = Math.floor(totalEmp * 0.50); // Operations/Delivery - office (50%)
+    const opsField2 = Math.floor(totalEmp * 0.20); // Operations/Delivery - field  (20%)
+    const mgmt2     = Math.floor(totalEmp * 0.10); // Management                   (10%)
+    const finance   = Math.floor(totalEmp * 0.05); // Finance                       (5%)
+    const hr        = Math.floor(totalEmp * 0.05); // HR                            (5%)
+    // Other menyerap sisa agar total tepat (rumus: total - semua yg sudah dialokasi)
+    const other     = totalEmp - opsOffice - opsField2 - mgmt2 - finance - hr;
+
+    form.getTextField("Text Field 29").setText("");                    // Sales         = kosong
+    form.getTextField("Text Field 30").setText(String(opsOffice));     // Ops - office
+    form.getTextField("Text Field 31").setText("");                    // R&D           = kosong
+    form.getTextField("Text Field 32").setText("");                    // Marketing     = kosong
+    form.getTextField("Text Field 33").setText(String(opsField2));     // Ops - field
+    form.getTextField("Text Field 34").setText(String(mgmt2));         // Management
+    form.getTextField("Text Field 35").setText(String(finance));       // Finance
+    form.getTextField("Text Field 36").setText("");                    // Compliance    = kosong
+    form.getTextField("Text Field 37").setText(String(other));         // Other (termasuk sisa)
+    form.getTextField("Text Field 38").setText(String(hr));            // HR
+    form.getTextField("Text Field 39").setText("");                    // Maintenance   = kosong
+    form.getTextField("Text Field 42").setText(String(totalEmp));      // Total no. of employees
 
     // SECTION 5 - Client Type
     // Jenis klien: baru, existing, atau transfer
     // Karena agent hanya jalan kalau ada klien baru,
-    // "new client" selalu dicentang (hardcoded)
-    form.getCheckBox("Check Box 258").check(); // A new client - selalu dicentang
+    // "new client" selalu dicentang "Yes" (Check Box 177)
+    form.getCheckBox("Check Box 177").check(); // A new client - Yes
 
     // SECTION 6 - Scope of Certification
     // Deskripsi singkat apa yang dilakukan perusahaan klien
@@ -111,8 +140,7 @@ async function generateQRF(clientData) {
 
     // SECTION A - ISO 9001 spesifik
     // Hanya diisi kalau klien pilih ISO 9001
-    // Pertanyaan: apakah klien melakukan design & development produk?
-    if (standards.includes("9001")) {
+    if (standards.some(s => s.includes("9001"))) {
       if (clientData.has_design_development === true) {
         form.getCheckBox("Check Box 108").check();
         form.getTextField("Text Field 101").setText(String(clientData.design_staff_count || ""));
@@ -121,11 +149,67 @@ async function generateQRF(clientData) {
       }
     }
 
+    // SECTION B - ISO 14001 spesifik
+    if (standards.some(s => s.includes("14001"))) {
+      const b = clientData.iso_14001_details || {};
+      
+      // 1. Permit required?
+      if (b.permit_required === true) form.getCheckBox("Check Box 1010").check();
+      else if (b.permit_required === false) form.getCheckBox("Check Box 1011").check();
+
+      // 2. Discharges to water
+      if (b.discharges === "Frequently") form.getCheckBox("Check Box 222").check();
+      else if (b.discharges === "Occasionally") form.getCheckBox("Check Box 220").check();
+      else if (b.discharges === "Never") form.getCheckBox("Check Box 221").check();
+
+      // 3. Waste
+      if (b.waste === "Frequently") form.getCheckBox("Check Box 225").check();
+      else if (b.waste === "Occasionally") form.getCheckBox("Check Box 223").check();
+      else if (b.waste === "Never") form.getCheckBox("Check Box 224").check();
+
+      // 4. Noise and nuisance
+      if (b.noise === "Frequently") form.getCheckBox("Check Box 228").check();
+      else if (b.noise === "Occasionally") form.getCheckBox("Check Box 226").check();
+      else if (b.noise === "Never") form.getCheckBox("Check Box 227").check();
+
+      // 5. Incidents
+      if (b.incidents === true) form.getCheckBox("Check Box 1063").check();
+      else if (b.incidents === false) form.getCheckBox("Check Box 1064").check();
+    }
+
     // SECTION C - ISO 45001 spesifik
     // Hanya diisi kalau klien pilih ISO 45001
-    // Berisi info K3: jumlah karyawan, apakah ada anggota publik di lokasi
-    if (standards.includes("45001")) {
-      // Apakah ada anggota masyarakat umum yang hadir di lokasi kerja klien
+    if (standards.some(s => s.includes("45001"))) {
+      // Pemetaan hazards (berdasarkan tebakan pintar Groq)
+      const h = clientData.iso_45001_hazards || [];
+      const hazardMap = {
+        "asbestos": { cb: "Check Box 1031", tf: "Text Field 106" },
+        "explosives": { cb: "Check Box 1032", tf: "Text Field 107" },
+        "flammable": { cb: "Check Box 1033", tf: "Text Field 108" },
+        "dangerous_goods": { cb: "Check Box 1034", tf: "Text Field 109" },
+        "underwater": { cb: "Check Box 1035", tf: "Text Field 1010" },
+        "extreme_temps": { cb: "Check Box 1036", tf: "Text Field 1011" },
+        "dangerous_animals": { cb: "Check Box 1037", tf: "Text Field 1012" },
+        "water_proximity": { cb: "Check Box 1038", tf: "Text Field 1013" },
+        "gas": { cb: "Check Box 1039", tf: "Text Field 1014" },
+        "radiation": { cb: "Check Box 1040", tf: "Text Field 1015" },
+        "lifting_equipment": { cb: "Check Box 1041", tf: "Text Field 1016" },
+        "biological": { cb: "Check Box 1042", tf: "Text Field 1017" },
+        "moving_vehicles": { cb: "Check Box 1043", tf: "Text Field 1018" },
+        "food_prep": { cb: "Check Box 1044", tf: "Text Field 1019" }
+      };
+      
+      h.forEach(hz => {
+        if (hz && hz.hazard && hazardMap[hz.hazard]) {
+          try { 
+            form.getCheckBox(hazardMap[hz.hazard].cb).check(); 
+            if (hz.process) {
+              form.getTextField(hazardMap[hz.hazard].tf).setText(String(hz.process));
+            }
+          } catch (e) {}
+        }
+      });
+
       if (clientData.public_present === true) {
         form.getCheckBox("Check Box 1056").check(); // Yes
       } else if (clientData.public_present === false) {
