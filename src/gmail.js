@@ -52,6 +52,7 @@ async function getUnreadEmails() {
 
         return {
           messageId: msg.id,
+          threadId: msg.threadId, // Menambahkan threadId untuk melacak riwayat percakapan/revisi
           subject,
           from,
           body,
