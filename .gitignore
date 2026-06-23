@@ -3,3 +3,10 @@ node_modules/
 .env
 template/
 output/
+
+# Scratch and test files
+check-*.js
+qrf-name.js
+gettoken.js
+checkboxes.json
+database/
