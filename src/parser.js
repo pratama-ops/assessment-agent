@@ -142,6 +142,11 @@ Jika klien meminta ISO 14001 atau 45001, analisislah 'scope' atau industri merek
             .trim();
 
         const clientData = JSON.parse(cleanText);
+        
+        // Penuhi request user: force company_name sama persis dengan subject email
+        if (emailSubject) {
+            clientData.company_name = emailSubject;
+        }
 
         console.log("✅ Email parsed successfully:", clientData.company_name);
         return clientData;
