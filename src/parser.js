@@ -84,7 +84,15 @@ Format JSON yang harus dikembalikan:
   "fee_recertification": "",
   "due_date_surveillance_1": "",
   "due_date_surveillance_2": "",
-  "due_date_recertification": ""
+  "due_date_recertification": "",
+  "iso_14001_details": {
+    "permit_required": false,
+    "discharges": "Never",
+    "waste": "Occasionally",
+    "noise": "Never",
+    "incidents": false
+  },
+  "iso_45001_hazards": []
 }
 
 Aturan penting:
@@ -97,7 +105,20 @@ Aturan penting:
 - implementation_stage harus salah satu dari: researching, implementing, system_in_place, already_certified
 - Kalau data tidak ada di email, isi dengan nilai default: string kosong "", false untuk boolean, 0 untuk angka
 - fee dan mandays biarkan kosong string "", akan diisi manual saat review
-- contract_type selalu "Initial" untuk klien baru`
+- contract_type selalu "Initial" untuk klien baru
+
+Aturan khusus Tebakan Pintar AI (AI Guessing):
+Jika klien meminta ISO 14001 atau 45001, analisislah 'scope' atau industri mereka dan JAWABLAH dengan logis (kecuali email memberi 'Catatan Khusus' yang menimpa tebakanmu):
+- iso_14001_details:
+  - permit_required: true jika pabrik/tambang/manufaktur besar, false jika office/IT/jasa.
+  - discharges: "Frequently", "Occasionally", atau "Never".
+  - waste: "Frequently", "Occasionally", atau "Never".
+  - noise: "Frequently", "Occasionally", atau "Never" (misal pabrik besi = Frequently).
+  - incidents: tebak false kecuali disebut lain.
+- iso_45001_hazards:
+  - Berikan array of objects berisi bahaya yang MUNGKIN ADA, dengan format: {"hazard": "nama_bahaya", "process": "deskripsi singkat proses yang berisiko tersebut (maksimal 1 kalimat)"}.
+  - Pilihan 'hazard' yang valid HANYA: "asbestos", "explosives", "flammable", "dangerous_goods", "underwater", "extreme_temps", "dangerous_animals", "water_proximity", "gas", "radiation", "lifting_equipment", "biological", "moving_vehicles", "food_prep".
+  - Contoh: jika scope "Logistics", masukkan [{"hazard": "moving_vehicles", "process": "mobility of heavy equipment and transportation"}]. Jika "Software", kosongi array [].`
                     },
                     {
                         role: "user",
@@ -151,4 +172,69 @@ function isNewClientEmail(subject, body) {
     );
 }
 
-module.exports = { parseEmailToClientData, isNewClientEmail };
+// Fungsi untuk menerapkan instruksi revisi dari email ke data klien (JSON)
+// Groq AI akan membaca JSON yang lama, menganalisis instruksi revisi, dan mengembalikan JSON baru
+async function applyRevisionToData(revisionEmailBody, existingClientData) {
+    try {
+        const eacList = await getEacList();
+        const eacString = eacList.map(e => `${e.code}=${e.description}`).join(", ");
+        
+        const initialsList = await getAuditorInitialsList();
+        const initialsString = initialsList.join(", ");
+
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    {
+                        role: "system",
+                        content: `Kamu adalah asisten ahli NQA Indonesia yang bertugas merevisi data klien berdasarkan email feedback.
+
+Berikut adalah data klien SAAT INI dalam format JSON:
+${JSON.stringify(existingClientData, null, 2)}
+
+Tugasmu:
+1. Baca instruksi revisi dari user.
+2. Identifikasi bagian mana dari data klien saat ini yang harus diubah (misalnya NACE code, OHSAS code, scope, jumlah employee, dll).
+3. Terapkan perubahan tersebut. Jika ada instruksi yang kurang jelas, buat asumsi paling logis berdasarkan aturan standar.
+4. Kembalikan SELURUH data klien dalam format JSON HANYA (tanpa teks penjelasan, tanpa markdown \`\`\`json). Data yang tidak direvisi harus tetap dipertahankan.
+
+Aturan standar tetap berlaku:
+- iaf_code referensi: ${eacString}
+- auditor_name inisial: ${initialsString}
+`
+                    },
+                    {
+                        role: "user",
+                        content: `Tolong revisi data klien berdasarkan email feedback berikut:\n\n${revisionEmailBody}`
+                    }
+                ],
+                temperature: 0.1
+            })
+        });
+
+        const data = await response.json();
+        const rawText = data.choices[0].message.content.trim();
+
+        const cleanText = rawText
+            .replace(/```json/g, "")
+            .replace(/```/g, "")
+            .trim();
+
+        const updatedClientData = JSON.parse(cleanText);
+
+        console.log("✅ Revision parsed successfully:", updatedClientData.company_name);
+        return updatedClientData;
+
+    } catch (error) {
+        console.error("❌ Error parsing revision email:", error);
+        throw error;
+    }
+}
+
+module.exports = { parseEmailToClientData, isNewClientEmail, applyRevisionToData };
